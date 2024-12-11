@@ -7,6 +7,7 @@ randomized trees. Single and multi-output problems are both handled.
 # SPDX-License-Identifier: BSD-3-Clause
 
 import copy
+import inspect
 import numbers
 from abc import ABCMeta, abstractmethod
 from math import ceil
@@ -374,13 +375,20 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
 
         # Build tree
         criterion = self.criterion
+
         if not isinstance(criterion, Criterion):
             if is_classification:
-                criterion = CRITERIA_CLF[self.criterion](
-                    self.n_outputs_, self.n_classes_
-                )
+                if inspect.isclass(criterion):
+                    criterion = criterion(self.n_outputs_, self.n_classes_)
+                else:
+                    criterion = CRITERIA_CLF[self.criterion](
+                        self.n_outputs_, self.n_classes_
+                    )
             else:
-                criterion = CRITERIA_REG[self.criterion](self.n_outputs_, n_samples)
+                if inspect.isclass(criterion):
+                    criterion = criterion(self.n_outputs_, n_samples)
+                else:
+                    criterion = CRITERIA_REG[self.criterion](self.n_outputs_, n_samples)
         else:
             # Make a deepcopy in case the criterion has mutable attributes that
             # might be shared and modified concurrently during parallel fitting
@@ -429,14 +437,24 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
                 monotonic_cst *= -1
 
         if not isinstance(self.splitter, Splitter):
-            splitter = SPLITTERS[self.splitter](
-                criterion,
-                self.max_features_,
-                min_samples_leaf,
-                min_weight_leaf,
-                random_state,
-                monotonic_cst,
-            )
+            if inspect.isclass(self.splitter):
+                splitter = self.splitter(
+                    criterion,
+                    self.max_features_,
+                    min_samples_leaf,
+                    min_weight_leaf,
+                    random_state,
+                    monotonic_cst,
+                )
+            else:
+                splitter = SPLITTERS[self.splitter](
+                    criterion,
+                    self.max_features_,
+                    min_samples_leaf,
+                    min_weight_leaf,
+                    random_state,
+                    monotonic_cst,
+                )
 
         if is_classifier(self):
             self.tree_ = Tree(self.n_features_in_, self.n_classes_, self.n_outputs_)
